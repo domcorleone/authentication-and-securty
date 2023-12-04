@@ -15,12 +15,20 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 /* simple way to declare a schema - javascript object */
-const userSchema = { 
+// const userSchema = { 
+//   email: String, 
+//   password: String 
+// }; // schema
+
+/* recommended way to declare a schema  */
+const userSchema = new Schema({ 
   email: String, 
   password: String 
-}; // schema
+}); // schema
 
-
+/* encrypt our password */
+const secret = "Thisisourlittlesecret.";
+userSchema.plugin(encrypt, { secret: secret, encryptedFields: ['password']});
 
 const User = new mongoose.model("User", userSchema); // model
 

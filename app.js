@@ -2,7 +2,8 @@
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose, { Schema } from "mongoose";
-import encrypt from "mongoose-encryption";
+import encrypt from "mongoose-encryption"; //level 2
+import 'dotenv/config'; // level 3
 
 const app = express();
 const port = 3000;
@@ -14,21 +15,14 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(express.static("public"));
 
-/* simple way to declare a schema - javascript object */
-// const userSchema = { 
-//   email: String, 
-//   password: String 
-// }; // schema
-
 /* recommended way to declare a schema  */
 const userSchema = new Schema({ 
   email: String, 
   password: String 
-}); // schema
-
+}); // schema //level 2
+console.log(process.env.SECRET);
 /* encrypt our password */
-const secret = "Thisisourlittlesecret.";
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ['password']});
+ userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password']}); //level 3
 
 const User = new mongoose.model("User", userSchema); // model
 

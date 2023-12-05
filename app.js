@@ -3,7 +3,8 @@ import express from "express";
 import bodyParser from "body-parser";
 import mongoose, { Schema } from "mongoose";
 import encrypt from "mongoose-encryption"; //level 2
-import 'dotenv/config'; // level 3
+import 'dotenv/config'; // Add Environment Variables
+import md5 from "md5";
 
 const app = express();
 const port = 3000;
@@ -61,7 +62,7 @@ app.post("/register", (req, res) => {
   console.log(req.body);
   const newUser = new User({
     email: req.body.username,
-    password: req.body.password
+    password: md5(req.body.password)
   });
   newUser.save();  
   res.render("secrets.ejs");
@@ -77,7 +78,7 @@ app.post("/login", async (req, res) => {
   console.log("user", user);
   if (user){ // means that user exists    
     console.log("password", user.password);
-    if ( user.password === req.body.password ){ // if password matches
+    if ( user.password === md5(req.body.password) ){ // if password matches
       res.render("secrets.ejs");
     } else{ 
       message = `Password for Username ${req.body.username} doesn't match.`;      

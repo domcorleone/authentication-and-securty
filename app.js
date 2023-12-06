@@ -2,29 +2,33 @@
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose, { Schema } from "mongoose";
-// passport step -1
 import session from "express-session";
 import passport from "passport";
 import passportLocalMongoose from "passport-local-mongoose";
-
+import googleStrategy from "passport-google-oauth20";
+import findOrCreate from "mongoose-findorcreate";
+import "dotenv/config";
 
 const app = express();
 const port = 3000;
 let message = "";
 const url = "mongodb://127.0.0.1:27017";
-const dbname = "testedb"; 
+const dbname = "testedb";
 const saltRounds = 10;
+const GoogleStrategy = googleStrategy.Strategy;
 
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(express.static("public"));
-// passport step -2
-app.use(session({
-  secret: "Our little secret.", //hide this
-  resave: false,
-  saveUninitialized: false
-}))
-// passport step -3
+
+app.use(
+  session({
+    secret: "Our little secret.", //hide this
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -43,16 +47,52 @@ openConnection();
 const userSchema = new Schema({
   username: String,
   password: String,
+  googleId: String,
 }); // schema
-// passport step -4
+
 userSchema.plugin(passportLocalMongoose);
+
+userSchema.plugin(findOrCreate);
 
 const User = new mongoose.model("User", userSchema); // model
 
-// passport step -5
 passport.use(User.createStrategy());
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+
+passport.serializeUser(function(user, cb) {
+  console.log(user)
+  process.nextTick(function() {
+    return cb(null, {
+      id: user.id,    
+    });
+  });
+});
+
+passport.deserializeUser(function(user, cb) {
+  process.nextTick(function() {
+    // console.log(user)
+    return cb(null, user);
+  });
+});
+
+passport.use(
+  new GoogleStrategy(
+    {
+      //https://www.passportjs.org/packages/passport-google-oauth20/
+      clientID: process.env.CLIENT_ID,
+      clientSecret: process.env.CLIENT_SECRET,
+      callbackURL: "http://localhost:3000/auth/google/secrets",
+      userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+    },
+    (accessToken, refreshToken, profile, cb) => {
+      console.log(profile)
+      User.findOrCreate({ googleId: profile.id }, (err, user) => {
+        //https://www.npmjs.com/package/mongoose-findorcreate
+        
+        return cb(err, user);
+      });
+    }
+  )
+);
 
 async function listAllUsers() {
   try {
@@ -64,69 +104,93 @@ async function listAllUsers() {
   }
 }
 
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile"] })
+);
+
+app.get(
+  "/auth/google/secrets",
+  passport.authenticate("google", { failureRedirect: "/login" }),
+  function (req, res) {
+    // Successful authentication, redirect home.
+    res.redirect("/secrets");
+  }
+);
+
 app.get("/", async (req, res) => {
-  //   const con = await openConn();
-  // await listAllUsers();
   res.render("home.ejs");
 });
 
-app.get("/secrets", (req, res) =>{
- 
-  if (req.isAuthenticated()){
-    res.render("secrets.ejs")
+app.get("/secrets", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.render("secrets.ejs");
   } else {
     res.redirect("/login");
   }
-})
+});
 
 app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
-app.post("/register", (req, res) => { //https://www.npmjs.com/package/passport-local-mongoose
+app.post("/register", (req, res) => {
+  //https://www.npmjs.com/package/passport-local-mongoose
   console.log(req.body);
-  User.register({username: req.body.username}, req.body.password, (err, user)=>{
-    if (err){
-      res.redirect("/register");
-    } else {
-      console.log(user);
-      passport.authenticate("local")(req, res, ()=>{    // will create a session with a cookie    
-        res.redirect("/secrets");
-      })
+  User.register(
+    { username: req.body.username },
+    req.body.password,
+    (err, user) => {
+      if (err) {
+        res.redirect("/register");
+      } else {
+        console.log(user);
+        passport.authenticate("local")(req, res, () => {
+          // will create a session with a cookie
+          res.redirect("/secrets");
+        });
+      }
     }
-  }) 
+  );
 });
 
 app.get("/login", (req, res) => {
   res.render("login.ejs");
 });
 
-app.post("/login", async (req, res) => { //https://www.passportjs.org/concepts/authentication/login/
+app.post("/login", async (req, res) => {
+  //https://www.passportjs.org/concepts/authentication/login/
   console.log(req.body);
-  const user = new User({ // coming from the webpage
+  const user = new User({
+    // coming from the webpage
     username: req.body.username,
-    password: req.body.password
+    password: req.body.password,
   });
-  req.login(user, (err)=>{
-    if (err){
+  req.login(user, (err) => {
+    if (err) {
       message = `Username ${req.body.username} or password is invalid.`;
       res.render("login.ejs", { error: message });
     } else {
-      passport.authenticate("local")(req, res, ()=>{ // this will call login() method automatically
-        res.redirect("/secrets")
-      })
+      passport.authenticate("local")(req, res, () => {
+        // this will call login() method automatically
+        res.redirect("/secrets");
+      });
     }
-  })
+  });
 });
 
 app.get("/submit", (req, res) => {
   res.render("submit.ejs");
 });
 
-app.get("/logout", (req, res) => { //https://www.passportjs.org/tutorials/password/logout/
-  message = "";  
-  req.logout(function(err) { // will delete a session with the cookie
-    if (err) { return next(err); }
+app.get("/logout", (req, res) => {
+  //https://www.passportjs.org/tutorials/password/logout/
+  message = "";
+  req.logout(function (err) {
+    // will delete a session with the cookie
+    if (err) {
+      return next(err);
+    }
     res.redirect("/");
   });
 });

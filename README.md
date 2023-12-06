@@ -11,5 +11,5 @@ Wll add environment variable to hide any KEY, PASSWORDS or APY_KEY which prevent
 ## Level 4 - Hashing and Salting with bcrypt
 Will convert pwd to hash using algorithm bcrypt and furthermore will be using salting round that allows to reenforce or reconvert each resultant hash according to the number defined in salting result
 ## Level 5 - Cookies and Sessions
-...
+This level uses passport.js for authentication
 ## Level 6 - Google OAuth 2.0 Authentication

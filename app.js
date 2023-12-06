@@ -23,7 +23,7 @@ app.use(express.static("public"));
 
 app.use(
   session({
-    secret: "Our little secret.", //hide this
+    secret: process.env.SECRET_APP,
     resave: false,
     saveUninitialized: false,
   })
@@ -78,8 +78,8 @@ passport.use(
   new GoogleStrategy(
     {
       //https://www.passportjs.org/packages/passport-google-oauth20/
-      clientID: process.env.CLIENT_ID,
-      clientSecret: process.env.CLIENT_SECRET,
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: "http://localhost:3000/auth/google/secrets",
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },

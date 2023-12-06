@@ -6,6 +6,7 @@ import session from "express-session";
 import passport from "passport";
 import passportLocalMongoose from "passport-local-mongoose";
 import googleStrategy from "passport-google-oauth20";
+import FacebookStrategy from "passport-facebook";
 import findOrCreate from "mongoose-findorcreate";
 import "dotenv/config";
 
@@ -48,6 +49,7 @@ const userSchema = new Schema({
   username: String,
   password: String,
   googleId: String,
+  facebookId: String,
 }); // schema
 
 userSchema.plugin(passportLocalMongoose);
@@ -94,6 +96,20 @@ passport.use(
   )
 );
 
+passport.use(new FacebookStrategy({
+  clientID: process.env.FACEBOOK_CLIENT_ID,
+  clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+  callbackURL: "http://localhost:3000/auth/facebook/secrets",
+  profileFields: ["name","displayName", "profileUrl", "photos", "email"]
+},
+function(accessToken, refreshToken, profile, cb) {
+  console.log("Facebook profile: ", profile)
+  User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+    return cb(err, user);
+  });
+}
+));
+
 async function listAllUsers() {
   try {
     console.log(User);
@@ -103,6 +119,14 @@ async function listAllUsers() {
     console.error(error);
   }
 }
+
+app.get('/auth/facebook', passport.authenticate("facebook"));
+
+app.get('/auth/facebook/secrets',
+  passport.authenticate('facebook', { failureRedirect: '/login', failureMessage: true }),
+  function(req, res) {
+    res.redirect('/secrets');
+  });
 
 app.get(
   "/auth/google",

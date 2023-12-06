@@ -20,7 +20,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 // passport step -2
 app.use(session({
-  secret: "Our little secret.",
+  secret: "Our little secret.", //hide this
   resave: false,
   saveUninitialized: false
 }))

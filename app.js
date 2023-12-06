@@ -2,9 +2,11 @@
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose, { Schema } from "mongoose";
-import encrypt from "mongoose-encryption"; //level 2
-import "dotenv/config"; // Add Environment Variables
-import bcrypt from "bcrypt";
+// passport step -1
+import session from "express-session";
+import passport from "passport";
+import passportLocalMongoose from "passport-local-mongoose";
+
 
 const app = express();
 const port = 3000;
@@ -16,14 +18,15 @@ const saltRounds = 10;
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(express.static("public"));
-
-/* recommended way to declare a schema  */
-const userSchema = new Schema({
-  email: String,
-  password: String,
-}); // schema //level 2
-
-const User = new mongoose.model("User", userSchema); // model
+// passport step -2
+app.use(session({
+  secret: "Our little secret.",
+  resave: false,
+  saveUninitialized: false
+}))
+// passport step -3
+app.use(passport.initialize());
+app.use(passport.session());
 
 async function openConnection() {
   console.log("openConnection");
@@ -35,6 +38,21 @@ async function openConnection() {
 }
 
 openConnection();
+
+/* recommended way to declare a schema  */
+const userSchema = new Schema({
+  username: String,
+  password: String,
+}); // schema
+// passport step -4
+userSchema.plugin(passportLocalMongoose);
+
+const User = new mongoose.model("User", userSchema); // model
+
+// passport step -5
+passport.use(User.createStrategy());
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 async function listAllUsers() {
   try {
@@ -48,63 +66,69 @@ async function listAllUsers() {
 
 app.get("/", async (req, res) => {
   //   const con = await openConn();
-  await listAllUsers();
+  // await listAllUsers();
   res.render("home.ejs");
 });
+
+app.get("/secrets", (req, res) =>{
+ 
+  if (req.isAuthenticated()){
+    res.render("secrets.ejs")
+  } else {
+    res.redirect("/login");
+  }
+})
 
 app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
-app.post("/register", (req, res) => {
+app.post("/register", (req, res) => { //https://www.npmjs.com/package/passport-local-mongoose
   console.log(req.body);
-  bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-    const newUser = new User({
-      email: req.body.username,
-      password: hash,
-    });
-    if (err) {
-      console.error(err);
+  User.register({username: req.body.username}, req.body.password, (err, user)=>{
+    if (err){
+      res.redirect("/register");
     } else {
-      newUser.save();
-      res.render("secrets.ejs");
+      console.log(user);
+      passport.authenticate("local")(req, res, ()=>{    // will create a session with a cookie    
+        res.redirect("/secrets");
+      })
     }
-  });
+  }) 
 });
 
 app.get("/login", (req, res) => {
   res.render("login.ejs");
 });
 
-app.post("/login", async (req, res) => {
+app.post("/login", async (req, res) => { //https://www.passportjs.org/concepts/authentication/login/
   console.log(req.body);
-  let user = await User.findOne({ email: req.body.username });
-  
-  if (user) { // means that user exists    
-   
-    bcrypt.compare(req.body.password, user.password /*hash*/, (err, result) => {
-      if (err) {
-        console.error("Error occured while trying to check passwords");
-      } else if (result === true) {
-        res.render("secrets.ejs");
-      } else {
-        message = `Password for Username ${req.body.username} doesn't match.`;
-        res.render("login.ejs", { error: message });
-      }
-    });
-  } else {
-    message = `Username ${req.body.username} doesn't exist.`;
-    res.render("login.ejs", { error: message });
-  }
+  const user = new User({ // coming from the webpage
+    username: req.body.username,
+    password: req.body.password
+  });
+  req.login(user, (err)=>{
+    if (err){
+      message = `Username ${req.body.username} or password is invalid.`;
+      res.render("login.ejs", { error: message });
+    } else {
+      passport.authenticate("local")(req, res, ()=>{ // this will call login() method automatically
+        res.redirect("/secrets")
+      })
+    }
+  })
 });
 
 app.get("/submit", (req, res) => {
   res.render("submit.ejs");
 });
 
-app.get("/logout", (req, res) => {
-  message = "";
-  res.render("login.ejs");
+app.get("/logout", (req, res) => { //https://www.passportjs.org/tutorials/password/logout/
+  message = "";  
+  req.logout(function(err) { // will delete a session with the cookie
+    if (err) { return next(err); }
+    res.redirect("/");
+  });
 });
 
 app.listen(port, () => {

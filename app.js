@@ -158,8 +158,8 @@ app.get("/login", (req, res) => {
   res.render("login.ejs");
 });
 
-app.post("/login", async (req, res) => {
-  //https://www.passportjs.org/concepts/authentication/login/
+app.post("/login", async (req, res) => { //https://www.passportjs.org/concepts/authentication/login/
+  
   console.log(req.body);
   const user = new User({
     // coming from the webpage

@@ -60,17 +60,17 @@ const User = new mongoose.model("User", userSchema); // model
 
 passport.use(User.createStrategy());
 
-passport.serializeUser(function(user, cb) {
-  console.log(user)
-  process.nextTick(function() {
+passport.serializeUser(function (user, cb) {
+  console.log(user);
+  process.nextTick(function () {
     return cb(null, {
-      id: user.id,    
+      id: user.id,
     });
   });
 });
 
-passport.deserializeUser(function(user, cb) {
-  process.nextTick(function() {
+passport.deserializeUser(function (user, cb) {
+  process.nextTick(function () {
     // console.log(user)
     return cb(null, user);
   });
@@ -86,29 +86,32 @@ passport.use(
       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
     },
     (accessToken, refreshToken, profile, cb) => {
-      console.log(profile)
+      console.log(profile);
       User.findOrCreate({ googleId: profile.id }, (err, user) => {
         //https://www.npmjs.com/package/mongoose-findorcreate
-        
+
         return cb(err, user);
       });
     }
   )
 );
 
-passport.use(new FacebookStrategy({
-  clientID: process.env.FACEBOOK_CLIENT_ID,
-  clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-  callbackURL: "http://localhost:3000/auth/facebook/secrets",
-  profileFields: ["name","displayName", "profileUrl", "photos", "email"]
-},
-function(accessToken, refreshToken, profile, cb) {
-  console.log("Facebook profile: ", profile)
-  User.findOrCreate({ facebookId: profile.id }, function (err, user) {
-    return cb(err, user);
-  });
-}
-));
+passport.use(
+  new FacebookStrategy(
+    {
+      clientID: process.env.FACEBOOK_CLIENT_ID,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+      callbackURL: "http://localhost:3000/auth/facebook/secrets",
+      profileFields: ["name", "displayName", "profileUrl", "photos", "email"],
+    },
+    function (accessToken, refreshToken, profile, cb) {
+      console.log("Facebook profile: ", profile);
+      User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+        return cb(err, user);
+      });
+    }
+  )
+);
 
 async function listAllUsers() {
   try {
@@ -120,13 +123,18 @@ async function listAllUsers() {
   }
 }
 
-app.get('/auth/facebook', passport.authenticate("facebook"));
+app.get("/auth/facebook", passport.authenticate("facebook"));
 
-app.get('/auth/facebook/secrets',
-  passport.authenticate('facebook', { failureRedirect: '/login', failureMessage: true }),
-  function(req, res) {
-    res.redirect('/secrets');
-  });
+app.get(
+  "/auth/facebook/secrets",
+  passport.authenticate("facebook", {
+    failureRedirect: "/login",
+    failureMessage: true,
+  }),
+  function (req, res) {
+    res.redirect("/secrets");
+  }
+);
 
 app.get(
   "/auth/google",
@@ -179,28 +187,47 @@ app.post("/register", (req, res) => {
 });
 
 app.get("/login", (req, res) => {
-  res.render("login.ejs");
+  res.render("login.ejs", { error: message });
 });
 
-app.post("/login", async (req, res) => { //https://www.passportjs.org/concepts/authentication/login/
-  
+app.post("/login", async (req, res, next) => {
+  //https://www.passportjs.org/concepts/authentication/login/
+
   console.log(req.body);
   const user = new User({
     // coming from the webpage
     username: req.body.username,
     password: req.body.password,
   });
-  req.login(user, (err) => {
+  //https://stackoverflow.com/questions/26236267/how-to-handle-unauthorized-requests-with-nodejs-passport
+  passport.authenticate("local", function (err, user) {
     if (err) {
-      message = `Username ${req.body.username} or password is invalid.`;
-      res.render("login.ejs", { error: message });
-    } else {
-      passport.authenticate("local")(req, res, () => {
-        // this will call login() method automatically
-        res.redirect("/secrets");
-      });
+      return next(err);
     }
-  });
+    if (!user) {
+      message = `Username ${req.body.username} or password is invalid.`;
+      return res.redirect("/login");
+    }
+    req.logIn(user, function (err) {
+      if (err) {
+        return next(err);
+      }
+      message = "";
+      return res.redirect("/secrets");
+    });
+  })(req, res, next);
+
+  // req.login(user, (err) => {
+  //   if (err) {
+  //     message = `Username ${req.body.username} or password is invalid.`;
+  //     res.render("login.ejs", { error: message });
+  //   } else {
+  //     passport.authenticate("local")(req, res, () => {
+  //       res.redirect("/secrets");
+  //     });
+
+  //   }
+  // });
 });
 
 app.get("/submit", (req, res) => {

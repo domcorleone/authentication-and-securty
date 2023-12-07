@@ -50,6 +50,7 @@ const userSchema = new Schema({
   password: String,
   googleId: String,
   facebookId: String,
+  secret: String,
 }); // schema
 
 userSchema.plugin(passportLocalMongoose);
@@ -154,13 +155,44 @@ app.get("/", async (req, res) => {
   res.render("home.ejs");
 });
 
-app.get("/secrets", (req, res) => {
-  if (req.isAuthenticated()) {
-    res.render("secrets.ejs");
+app.get("/secrets", async (req, res) => {
+  // if (req.isAuthenticated()) {
+  //   res.render("secrets.ejs", { error: message });
+  // } else {
+  //   res.redirect("/login");
+  // }
+  const allUsers = await User.find({});
+  console.log("All the users: ", allUsers);
+  res.render("secrets.ejs", { users: allUsers});
+});
+
+app.get("/submit", (req, res) => {
+  if ( req.isAuthenticated()){
+    res.render("submit.ejs");
   } else {
     res.redirect("/login");
   }
+  
 });
+
+app.post("/submit",  async (req, res) =>{
+   const summittedSecret = req.body.secret;
+   console.log(req.user);
+   let foundUser = null;
+   try {
+    foundUser = await User.findById(req.user.id).exec();
+    console.log("Found", foundUser)
+    if ( foundUser ){
+      foundUser.secret = summittedSecret;
+      foundUser.save();
+      res.redirect("/Secrets");
+    }
+   } catch (error) {
+      message = `Something wrong happenned When trying to get the with id ${req.user.id}`;
+      console.error(message, error)
+   }
+   
+})
 
 app.get("/register", (req, res) => {
   res.render("register.ejs");
@@ -230,9 +262,7 @@ app.post("/login", async (req, res, next) => {
   // });
 });
 
-app.get("/submit", (req, res) => {
-  res.render("submit.ejs");
-});
+
 
 app.get("/logout", (req, res) => {
   //https://www.passportjs.org/tutorials/password/logout/
